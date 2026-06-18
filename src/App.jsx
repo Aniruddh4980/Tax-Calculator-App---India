@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import { calculateTax } from './taxEngine';
+import { generateTaxSummaryPDF } from './pdfEngine';
 
 // Step specific FAQs
 const STEP_FAQS = {
@@ -39,11 +40,23 @@ const DEFAULT_FORM_DATA = {
   ageGroup: 'below60',
   cityType: 'metro',
   isSalaried: 'yes',
+  primaryIncomeSource: 'salary',
   
   // Salary
   monthlyInHand: 100000,
   monthsCount: 12,
   bonusAnnual: 0,
+  
+  // Freelance & Business
+  freelanceIncome: 0,
+  use44ADA: 'no',
+  businessExpenses: 0,
+
+  // Capital Gains
+  equitySTCG: 0,
+  equityLTCG: 0,
+  otherSTCG: 0,
+  otherLTCG: 0,
   
   // Deductions
   deductPF: 'no',
@@ -111,14 +124,14 @@ function App() {
     } catch (e) {}
     
     setTimeout(() => {
-      if (currentStep >= 1 && currentStep <= 7) {
+      if (currentStep >= 1 && currentStep <= 8) {
         const stepBar = document.getElementById('step-bar-container');
         if (stepBar) {
           stepBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
           window.scrollTo(0, 0);
         }
-      } else if (currentStep === 8) {
+      } else if (currentStep === 9) {
         const resultScreen = document.getElementById('result-screen-container');
         if (resultScreen) {
           resultScreen.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -165,7 +178,7 @@ function App() {
   }
 
   const handleNext = () => {
-    if (currentStep < 8) setCurrentStep(currentStep + 1);
+    if (currentStep < 9) setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -177,18 +190,31 @@ function App() {
   };
 
   const renderProgressBar = () => {
-    if (currentStep === 0 || currentStep === 8) return null;
-    const progressPercent = ((currentStep - 1) / 6) * 100;
+    if (currentStep === 0 || currentStep === 9) return null;
+    const progressPercent = ((currentStep - 1) / 7) * 100;
     return (
       <div className="progress-container" id="step-bar-container">
         <div className="progress-header">
-          <span>STEP {currentStep} OF 7</span>
+          <span>STEP {currentStep} OF 8</span>
           <span>{Math.round(progressPercent)}% COMPLETED</span>
         </div>
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progressPercent}%` }}></div>
         </div>
       </div>
+    );
+  };
+
+  const handleDownloadPDF = () => {
+    generateTaxSummaryPDF(
+      formData, 
+      oldRegime, 
+      newRegime, 
+      winnerLabel, 
+      savings, 
+      reasons, 
+      suggestions, 
+      winner
     );
   };
 
@@ -241,48 +267,123 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              <div>
+                <span className="input-label">What is your primary source of income?</span>
+                <div className="radio-group">
+                  <div 
+                    className={`radio-card ${formData.primaryIncomeSource === 'salary' ? 'selected' : ''}`}
+                    onClick={() => updateField('primaryIncomeSource', 'salary')}
+                  >
+                    Salary
+                  </div>
+                  <div 
+                    className={`radio-card ${formData.primaryIncomeSource === 'freelance' ? 'selected' : ''}`}
+                    onClick={() => updateField('primaryIncomeSource', 'freelance')}
+                  >
+                    Freelance / Business
+                  </div>
+                  <div 
+                    className={`radio-card ${formData.primaryIncomeSource === 'both' ? 'selected' : ''}`}
+                    onClick={() => updateField('primaryIncomeSource', 'both')}
+                  >
+                    Both
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );
       case 2:
         return (
           <div>
-            <h2 className="wizard-step-title">Money that reaches your bank</h2>
-            <p className="wizard-step-subtitle">Tell us what lands in your account after tax/PF cuts.</p>
+            <h2 className="wizard-step-title">Income that reaches you</h2>
+            <p className="wizard-step-subtitle">Tell us what lands in your account.</p>
             <div className="question-group">
-              <div>
-                <label className="input-label" htmlFor="monthlyInHand">Average monthly take-home salary received</label>
-                <input 
-                  type="number" 
-                  id="monthlyInHand" 
-                  className="input-field" 
-                  value={formData.monthlyInHand}
-                  onChange={(e) => updateField('monthlyInHand', Math.max(0, parseInt(e.target.value) || 0))}
-                />
-                <p className="helper-text">Include your net credit amount from your latest bank statements.</p>
-              </div>
+              {(formData.primaryIncomeSource === 'salary' || formData.primaryIncomeSource === 'both') && (
+                <>
+                  <div style={{ marginBottom: '1rem' }}><h3 style={{ fontSize: '1.1rem' }}>Salary Income</h3></div>
+                  <div>
+                    <label className="input-label" htmlFor="monthlyInHand">Average monthly take-home salary received</label>
+                    <input 
+                      type="number" 
+                      id="monthlyInHand" 
+                      className="input-field" 
+                      value={formData.monthlyInHand}
+                      onChange={(e) => updateField('monthlyInHand', Math.max(0, parseInt(e.target.value) || 0))}
+                    />
+                    <p className="helper-text">Include your net credit amount from your latest bank statements.</p>
+                  </div>
 
-              <div>
-                <label className="input-label" htmlFor="monthsCount">Number of months employed in FY 2025–26</label>
-                <input 
-                  type="number" 
-                  id="monthsCount" 
-                  className="input-field" 
-                  value={formData.monthsCount}
-                  onChange={(e) => updateField('monthsCount', Math.min(12, Math.max(1, parseInt(e.target.value) || 12)))}
-                />
-              </div>
+                  <div>
+                    <label className="input-label" htmlFor="monthsCount">Number of months employed in FY 2025–26</label>
+                    <input 
+                      type="number" 
+                      id="monthsCount" 
+                      className="input-field" 
+                      value={formData.monthsCount}
+                      onChange={(e) => updateField('monthsCount', Math.min(12, Math.max(1, parseInt(e.target.value) || 12)))}
+                    />
+                  </div>
 
-              <div>
-                <label className="input-label" htmlFor="bonusAnnual">Annual bonus or variable pay received (if any)</label>
-                <input 
-                  type="number" 
-                  id="bonusAnnual" 
-                  className="input-field" 
-                  value={formData.bonusAnnual}
-                  onChange={(e) => updateField('bonusAnnual', Math.max(0, parseInt(e.target.value) || 0))}
-                />
-              </div>
+                  <div>
+                    <label className="input-label" htmlFor="bonusAnnual">Annual bonus or variable pay received (if any)</label>
+                    <input 
+                      type="number" 
+                      id="bonusAnnual" 
+                      className="input-field" 
+                      value={formData.bonusAnnual}
+                      onChange={(e) => updateField('bonusAnnual', Math.max(0, parseInt(e.target.value) || 0))}
+                    />
+                  </div>
+                </>
+              )}
+
+              {(formData.primaryIncomeSource === 'freelance' || formData.primaryIncomeSource === 'both') && (
+                <>
+                  <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
+                    <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Freelance / Business Income</h3>
+                    <label className="input-label" htmlFor="freelanceIncome">Total Gross Freelance / Consulting Income (Annual)</label>
+                    <input 
+                      type="number" 
+                      id="freelanceIncome" 
+                      className="input-field" 
+                      value={formData.freelanceIncome}
+                      onChange={(e) => updateField('freelanceIncome', Math.max(0, parseInt(e.target.value) || 0))}
+                    />
+                  </div>
+                  <div style={{ marginTop: '1rem' }}>
+                    <span className="input-label">Do you want to use Section 44ADA (Presumptive Taxation)?</span>
+                    <p className="helper-text" style={{ marginBottom: '0.5rem' }}>Allows a flat 50% deduction on gross receipts without maintaining detailed books.</p>
+                    <div className="radio-group" style={{ marginBottom: formData.use44ADA === 'no' ? '0.5rem' : '1.25rem' }}>
+                      <div 
+                        className={`radio-card ${formData.use44ADA === 'yes' ? 'selected' : ''}`}
+                        onClick={() => updateField('use44ADA', 'yes')}
+                      >
+                        Yes (50% Flat Deduction)
+                      </div>
+                      <div 
+                        className={`radio-card ${formData.use44ADA === 'no' ? 'selected' : ''}`}
+                        onClick={() => updateField('use44ADA', 'no')}
+                      >
+                        No (Enter Actual Expenses)
+                      </div>
+                    </div>
+                  </div>
+                  {formData.use44ADA === 'no' && (
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <label className="input-label" htmlFor="businessExpenses">Total Annual Business Expenses</label>
+                      <input 
+                        type="number" 
+                        id="businessExpenses" 
+                        className="input-field" 
+                        value={formData.businessExpenses}
+                        onChange={(e) => updateField('businessExpenses', Math.max(0, parseInt(e.target.value) || 0))}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         );
@@ -592,6 +693,59 @@ function App() {
       case 7:
         return (
           <div>
+            <h2 className="wizard-step-title">Capital Gains</h2>
+            <p className="wizard-step-subtitle">Did you sell any stocks, mutual funds, or property this year?</p>
+            <div className="question-group">
+              <div>
+                <label className="input-label" htmlFor="equitySTCG">Short-Term Capital Gains (STCG) on Equity / Equity MFs</label>
+                <input 
+                  type="number" 
+                  id="equitySTCG" 
+                  className="input-field" 
+                  value={formData.equitySTCG}
+                  onChange={(e) => updateField('equitySTCG', Math.max(0, parseInt(e.target.value) || 0))}
+                />
+                <p className="helper-text">Taxed at flat 20%.</p>
+              </div>
+              <div>
+                <label className="input-label" htmlFor="equityLTCG">Long-Term Capital Gains (LTCG) on Equity / Equity MFs</label>
+                <input 
+                  type="number" 
+                  id="equityLTCG" 
+                  className="input-field" 
+                  value={formData.equityLTCG}
+                  onChange={(e) => updateField('equityLTCG', Math.max(0, parseInt(e.target.value) || 0))}
+                />
+                <p className="helper-text">First ₹1.25 Lakhs is exempt. The rest is taxed at 12.5%.</p>
+              </div>
+              <div>
+                <label className="input-label" htmlFor="otherSTCG">Short-Term Capital Gains on Other Assets (Property, Debt MFs)</label>
+                <input 
+                  type="number" 
+                  id="otherSTCG" 
+                  className="input-field" 
+                  value={formData.otherSTCG}
+                  onChange={(e) => updateField('otherSTCG', Math.max(0, parseInt(e.target.value) || 0))}
+                />
+                <p className="helper-text">Added to your standard income and taxed at slab rates.</p>
+              </div>
+              <div>
+                <label className="input-label" htmlFor="otherLTCG">Long-Term Capital Gains on Other Assets (Property etc.)</label>
+                <input 
+                  type="number" 
+                  id="otherLTCG" 
+                  className="input-field" 
+                  value={formData.otherLTCG}
+                  onChange={(e) => updateField('otherLTCG', Math.max(0, parseInt(e.target.value) || 0))}
+                />
+                <p className="helper-text">Taxed at 12.5% without indexation.</p>
+              </div>
+            </div>
+          </div>
+        );
+      case 8:
+        return (
+          <div>
             <h2 className="wizard-step-title">Review your inputs</h2>
             <p className="wizard-step-subtitle">Please verify if the information is correct. You can edit any section inline.</p>
             <div className="question-group" style={{ gap: '1.25rem' }}>
@@ -601,7 +755,7 @@ function App() {
                   <button onClick={() => jumpToStep(1)} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                 </div>
                 <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  Age Group: {formData.ageGroup === 'below60' ? 'Below 60' : formData.ageGroup === 'senior' ? 'Senior (60-79)' : 'Super Senior (80+)'} | City: {formData.cityType === 'metro' ? 'Metro' : 'Other'}
+                  Age Group: {formData.ageGroup === 'below60' ? 'Below 60' : formData.ageGroup === 'senior' ? 'Senior (60-79)' : 'Super Senior (80+)'} | City: {formData.cityType === 'metro' ? 'Metro' : 'Other'} | Source: {formData.primaryIncomeSource}
                 </div>
               </div>
 
@@ -611,7 +765,7 @@ function App() {
                   <button onClick={() => jumpToStep(2)} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                 </div>
                 <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  Monthly: ₹{formData.monthlyInHand.toLocaleString('en-IN')} | Months: {formData.monthsCount} | Bonus: ₹{formData.bonusAnnual.toLocaleString('en-IN')}
+                  Monthly: ₹{formData.monthlyInHand.toLocaleString('en-IN')} | Months: {formData.monthsCount} | Bonus: ₹{formData.bonusAnnual.toLocaleString('en-IN')} | Freelance: ₹{formData.freelanceIncome.toLocaleString('en-IN')}
                 </div>
               </div>
 
@@ -651,7 +805,17 @@ function App() {
                   <button onClick={() => jumpToStep(6)} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                 </div>
                 <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  80C: ₹{formData.savings80C.toLocaleString('en-IN')} | Health Ins: ₹{formData.healthInsuranceSelf.toLocaleString('en-IN')} / ₹{formData.healthInsuranceParents.toLocaleString('en-IN')} | Interest (Savings/FD): ₹{formData.savingsInterestAnnual.toLocaleString('en-IN')} / ₹{formData.fdInterestAnnual.toLocaleString('en-IN')}
+                  80C: ₹{formData.savings80C.toLocaleString('en-IN')} | Health Ins: ₹{formData.healthInsuranceSelf.toLocaleString('en-IN')} / ₹{formData.healthInsuranceParents.toLocaleString('en-IN')}
+                </div>
+              </div>
+
+              <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700 }}>7. Capital Gains</span>
+                  <button onClick={() => jumpToStep(7)} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                </div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                  Equity STCG: ₹{formData.equitySTCG.toLocaleString('en-IN')} | Equity LTCG: ₹{formData.equityLTCG.toLocaleString('en-IN')}
                 </div>
               </div>
             </div>
@@ -804,7 +968,7 @@ function App() {
   const renderResultScreen = () => {
     return (
       <div id="result-screen-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-        <div className="mock-preview">
+        <div className="mock-preview" id="result-screen-content">
           <div className="mock-header">
             <span className="mock-dot red"></span>
             <span className="mock-dot yellow"></span>
@@ -899,6 +1063,11 @@ function App() {
                     <td style={{ textAlign: 'right' }}>₹{Math.round(oldRegime.baseTax).toLocaleString('en-IN')}</td>
                     <td style={{ textAlign: 'right' }}>₹{Math.round(newRegime.baseTax).toLocaleString('en-IN')}</td>
                   </tr>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: oldRegime.capitalGainsTax > 0 || newRegime.capitalGainsTax > 0 ? 'inherit' : 'var(--text-muted)' }}>
+                    <td style={{ padding: '0.5rem 0' }}>Special Rate Tax (Capital Gains)</td>
+                    <td style={{ textAlign: 'right' }}>₹{Math.round(oldRegime.capitalGainsTax || 0).toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>₹{Math.round(newRegime.capitalGainsTax || 0).toLocaleString('en-IN')}</td>
+                  </tr>
                   <tr style={{ borderBottom: '1px solid var(--border-color)', color: oldRegime.rebate > 0 || newRegime.rebate > 0 ? 'inherit' : 'var(--text-muted)' }}>
                     <td style={{ padding: '0.5rem 0' }}>87A Rebate / Relief</td>
                     <td style={{ textAlign: 'right' }}>- ₹{Math.round(oldRegime.rebate).toLocaleString('en-IN')}</td>
@@ -944,13 +1113,20 @@ function App() {
               </div>
             )}
             
-            <button 
-              className="btn btn-secondary" 
-              style={{ alignSelf: 'center', marginTop: '1rem' }}
-              onClick={() => setCurrentStep(0)}
-            >
-              ← Start Over / Go to Home
-            </button>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }} data-html2canvas-ignore="true">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setCurrentStep(0)}
+              >
+                ← Start Over
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleDownloadPDF}
+              >
+                Download as PDF 📄
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -986,7 +1162,7 @@ function App() {
                 <button className="btn btn-primary" onClick={() => setCurrentStep(1)}>
                   Start in 2 minutes →
                 </button>
-                <button className="btn btn-secondary" onClick={() => setCurrentStep(8)}>
+                <button className="btn btn-secondary" onClick={() => setCurrentStep(9)}>
                   See a sample result
                 </button>
               </div>
@@ -1066,13 +1242,13 @@ function App() {
         </main>
 
         <footer className="app-footer">
-          <p>© 2026 TaxRegime.in • Built for Indian Salaried Employees • FY 2025-26 / AY 2026-27</p>
+          <p>© 2026 TaxRegime.in • Built for Indian Salaried Employees and Freelancers • FY 2025-26 / AY 2026-27</p>
         </footer>
       </div>
     );
   }
 
-  if (currentStep === 8) {
+  if (currentStep === 9) {
     return (
       <div className="app-container">
         <header className="app-header">
@@ -1088,7 +1264,7 @@ function App() {
           {renderResultScreen()}
         </main>
         <footer className="app-footer">
-          <p>© 2026 TaxRegime.in • Built for Indian Salaried Employees • FY 2025-26 / AY 2026-27</p>
+          <p>© 2026 TaxRegime.in • Built for Indian Salaried Employees and Freelancers • FY 2025-26 / AY 2026-27</p>
         </footer>
       </div>
     );
@@ -1156,7 +1332,7 @@ function App() {
       </div>
 
       <footer className="app-footer">
-        <p>© 2026 TaxRegime.in • Built for Indian Salaried Employees • FY 2025-26 / AY 2026-27</p>
+        <p>© 2026 TaxRegime.in • Built for Indian Salaried Employees and Freelancers • FY 2025-26 / AY 2026-27</p>
       </footer>
     </div>
   );

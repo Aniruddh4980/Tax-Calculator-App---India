@@ -145,7 +145,29 @@ export function calculateTax(formData) {
   const salaryData = reconstructSalary(formData);
   const salaryGross = salaryData.annualGross;
   
-  const otherIncome = (formData.savingsInterestAnnual || 0) + (formData.fdInterestAnnual || 0);
+  const freelanceIncome = formData.freelanceIncome || 0;
+  let netBusinessIncome = 0;
+  if (freelanceIncome > 0) {
+    if (formData.use44ADA === 'yes') {
+      netBusinessIncome = freelanceIncome * 0.50; // 50% flat deduction
+    } else {
+      netBusinessIncome = Math.max(0, freelanceIncome - (formData.businessExpenses || 0));
+    }
+  }
+
+  // Capital Gains
+  const equitySTCG = formData.equitySTCG || 0;
+  const equityLTCG = formData.equityLTCG || 0;
+  const otherSTCG = formData.otherSTCG || 0;
+  const otherLTCG = formData.otherLTCG || 0;
+
+  const equitySTCGTax = equitySTCG * 0.20;
+  const taxableEquityLTCG = Math.max(0, equityLTCG - 125000);
+  const equityLTCGTax = taxableEquityLTCG * 0.125;
+  const otherLTCGTax = otherLTCG * 0.125;
+  const specialCapitalGainsTax = equitySTCGTax + equityLTCGTax + otherLTCGTax;
+  
+  const otherIncome = (formData.savingsInterestAnnual || 0) + (formData.fdInterestAnnual || 0) + netBusinessIncome + otherSTCG;
   const totalGrossIncome = salaryGross + otherIncome;
   
   // ================= OLD REGIME =================
@@ -205,8 +227,9 @@ export function calculateTax(formData) {
   }
   
   const taxAfterRebateOld = Math.max(0, oldSlabsResult.tax - rebateOld);
-  const cessOld = taxAfterRebateOld * 0.04;
-  const finalTaxOld = taxAfterRebateOld + cessOld;
+  const taxIncludingCG_Old = taxAfterRebateOld + specialCapitalGainsTax;
+  const cessOld = taxIncludingCG_Old * 0.04;
+  const finalTaxOld = taxIncludingCG_Old + cessOld;
   
   // ================= NEW REGIME =================
   const stdDeductionNew = getStandardDeduction(salaryGross, 'new');
@@ -231,8 +254,9 @@ export function calculateTax(formData) {
   }
   
   const taxAfterRebateNew = Math.max(0, newSlabsResult.tax - rebateNew);
-  const cessNew = taxAfterRebateNew * 0.04;
-  const finalTaxNew = taxAfterRebateNew + cessNew;
+  const taxIncludingCG_New = taxAfterRebateNew + specialCapitalGainsTax;
+  const cessNew = taxIncludingCG_New * 0.04;
+  const finalTaxNew = taxIncludingCG_New + cessNew;
   
   const winner = finalTaxOld < finalTaxNew ? 'old' : 'new';
   const savings = Math.abs(finalTaxOld - finalTaxNew);
@@ -257,11 +281,20 @@ export function calculateTax(formData) {
   if (allowed80C < 150000) {
     suggestions.push(`You have ₹${(150000 - allowed80C).toLocaleString('en-IN')} unused room in Section 80C. Investing in PPF, ELSS, or Tax-Saver FDs could make the Old Regime more beneficial.`);
   }
-  if (formData.employerNPS === 'no') {
+  if (allowed80CCD1B < 50000) {
+    suggestions.push(`Consider investing in NPS under Section 80CCD(1B) to get an additional ₹${(50000 - allowed80CCD1B).toLocaleString('en-IN')} deduction in the Old Regime.`);
+  }
+  if (allowed80D === 0) {
+    suggestions.push("Buy health insurance to claim 80D benefits and protect against medical emergencies. This helps save tax in the Old Regime.");
+  }
+  if (formData.employerNPS === 'no' || !formData.employerNpsMonthlyAmount) {
     suggestions.push("Check if your employer offers NPS corporate contribution. Section 80CCD(2) is deductible under both regimes and can save extra tax.");
   }
   if (formData.paysRent === 'yes' && formData.hasHRA === 'no' && allowed80GG === 0) {
     suggestions.push("Since you pay rent but do not receive HRA, you could claim Section 80GG fallback in the Old Regime.");
+  }
+  if (equityLTCG > 0 || equitySTCG > 0) {
+    suggestions.push("Harvest your Long Term Capital Gains (LTCG) on equity up to ₹1.25 Lakhs per year to use the tax-free limit.");
   }
 
   return {
@@ -284,6 +317,7 @@ export function calculateTax(formData) {
       totalDeductions: totalDeductionsOld,
       taxableIncome: taxableIncomeOld,
       baseTax: oldSlabsResult.tax,
+      capitalGainsTax: specialCapitalGainsTax,
       rebate: rebateOld,
       cess: cessOld,
       finalTax: finalTaxOld,
@@ -305,6 +339,7 @@ export function calculateTax(formData) {
       totalDeductions: totalDeductionsNew,
       taxableIncome: taxableIncomeNew,
       baseTax: newSlabsResult.tax,
+      capitalGainsTax: specialCapitalGainsTax,
       rebate: rebateNew,
       cess: cessNew,
       finalTax: finalTaxNew,

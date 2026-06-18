@@ -18,23 +18,23 @@ The product should reduce effort, remove jargon, and make the tax decision feel 
 
 ## 3. Product goals
 
-- Help salaried users compare old vs new regime in under 5 minutes.
-- Start from monthly take-home amount, not CTC.
+- Help salaried and freelance users compare old vs new regime in under 5 minutes.
+- Start from monthly take-home amount or freelance income.
 - Explain tax using plain language.
 - Show live estimates while the user is still answering questions.
 - Make the final recommendation easy to understand: **Pick this regime. You save ₹X.**
 - Stay fully in-browser and privacy-first.
-- Support FY 2025–26 tax rules accurately for salaried users.
+- Support FY 2025–26 tax rules accurately.
+- Let users export their full tax summary as a PDF.
+- Provide actionable tax saving suggestions.
 
 ## 4. Non-goals
 
 - No filing of tax returns.
 - No PAN, Aadhaar, login, or backend account.
-- No support for business income, freelance income, capital gains, crypto, or complex special-rate income.
+- No support for crypto or complex special-rate income outside standard capital gains.
 - No surcharge calculations in v1.
 - No AMT / MAT.
-- No PDF export required.
-- No general income tax advisory beyond salaried comparison.
 
 ## 5. Target users
 
@@ -64,7 +64,7 @@ A first-time employee who only knows monthly bank credit and wants a guided expl
 - Assessment Year: **2026–27**
 
 ### User scope
-- Salaried individuals in India
+- Salaried individuals and freelancers/consultants in India
 - Resident individuals primarily
 - Age-based handling must support:
   - below 60
@@ -77,6 +77,8 @@ A first-time employee who only knows monthly bank credit and wants a guided expl
 
 ### Income scope
 - Salary income
+- Freelance / Business income / Consulting fees
+- Capital gains (Stocks, mutual funds, property with STCG and LTCG)
 - House rent allowance
 - Standard deduction
 - Professional tax
@@ -216,6 +218,17 @@ The app must use these slabs:
 - Formula should follow official rules and cap logic.
 - If product complexity needs to stay tight, 80GG can be hidden behind “I pay rent but do not get HRA”.
 
+## 8.13 Freelance / Business Income
+- Provide input for freelance income, business income, or consulting fees.
+- Include provisions for presumptive taxation (e.g., Section 44ADA for 50% flat deduction for professionals) or allow input for deductible business expenses.
+- Add resulting net business income to total taxable income.
+
+## 8.14 Capital Gains
+- Separate inputs for Capital Gains, differentiated by asset class:
+  - **Stocks / Equity Mutual Funds**: STCG (taxed at 20%) and LTCG (taxed at 12.5% on gains over ₹1.25L).
+  - **Property / Other Assets**: STCG (slab rate) and LTCG (12.5% without indexation).
+- Ensure chapter VI-A deductions and rebates are appropriately handled, as they generally cannot offset equity capital gains under certain rules. Add capital gains tax to final tax liability independently.
+
 ## 9. Experience design
 
 ## 9.1 Landing page
@@ -252,13 +265,20 @@ The wizard should ask one thing at a time and adapt based on answers.
 - Age group
 - Employment type if needed for PF/NPS logic
 - City type: metro or non-metro
-- Do you get salary in bank every month? (this opens the flow)
+- Primary source of income: Salary, Freelance/Business, or Both
 
-### Step 2: Money that reaches your bank
+### Step 2: Income
 - Monthly in-hand salary credited
+- Freelance/Consulting income (annual or monthly)
+- Related business expenses or presumptive taxation (Section 44ADA) option
 - Optional: number of salary months if not 12
 - Optional: annual bonus or variable pay
 - Optional helper text: “Use the amount that lands in your bank after company deductions.”
+
+### Step 2.5: Capital Gains
+- Short-Term Capital Gains (STCG) from Equity/Mutual Funds
+- Long-Term Capital Gains (LTCG) from Equity/Mutual Funds
+- STCG/LTCG from Property/Other Assets
 
 ### Step 3: What your payslip cuts out
 Ask only the items that matter:
@@ -394,11 +414,9 @@ The engine must maintain a regime eligibility matrix.
 
 ### Not allowed in v1
 - surcharge logic
-- capital gains
-- business / freelance income
 - AMT / MAT
 - foreign income
-- special rate income
+- crypto income
 
 ## 10.4 Rebate logic
 The engine must support:
@@ -456,12 +474,15 @@ Show 2 to 4 reason cards:
 - Your income is near the rebate threshold, so tax drops sharply.
 
 ### Personalized suggestions
-Generate practical next-step suggestions:
+Generate practical next-step suggestions based on the user's inputs:
 - “You still have room under 80C. More PF / PPF / ELSS could help in old regime.”
+- “Consider investing in NPS under Section 80CCD(1B) to get an additional ₹50,000 deduction.”
+- “Buy health insurance to claim 80D benefits and protect against medical emergencies.”
 - “If your employer offers NPS, ask whether 80CCD(2) is available.”
 - “If you pay rent, keep HRA proofs ready in old regime.”
 - “If you have a home loan and live in that house, old regime may benefit more.”
 - “If your deductions are low and you do not want paperwork, new regime is simpler.”
+- “Harvest your Long Term Capital Gains up to ₹1.25 Lakhs per year to use the tax-free limit.”
 
 The suggestion engine must be deterministic and based on rules, not vague AI guessing.
 
@@ -505,6 +526,11 @@ Show a plain-language explanation:
 - "Keep rent proofs if you claim HRA."
 - “Review whether 80D is correctly split between self/family and parents.”
 
+### PDF Export
+- A "Download as PDF" button that generates a beautifully formatted, high-quality vector PDF report using a programmatic PDF engine (`pdfmake`).
+- The PDF should include the summary of inputs, side-by-side comparison, slab breakdowns, and the personalized tax-saving suggestions for easy sharing with a CA.
+- The exported PDF header must center the "TaxRegime.in" logo/title and not include the browser-only badge.
+
 ## 13. UI / UX requirements
 
 ## 13.1 Visual style
@@ -518,6 +544,7 @@ Show a plain-language explanation:
 - **Shapes & Elevations**: Large rounded corners (24px) with subtle, premium shadows.
 - Avoid dark navy backgrounds, neon glow effects, and heavy gradients.
 - Strictly light mode (no dark mode toggle).
+- **Footer Text**: Every screen and exported PDF must display the unified footer: "© 2026 TaxRegime.in • Built for Indian Salaried Employees and Freelancers • FY 2025-26 / AY 2026-27"
 
 ## 13.2 Layout & Navigation
 Desktop:
@@ -590,16 +617,25 @@ Use short tooltips for tricky items:
   - residency status
   - metro flag
   - employment type
-- salary
+  - primary income source
+- income
   - monthly bank credit
   - months paid
   - bonus
+  - freelance income
+  - business expenses
+  - presumptive taxation flag
   - employee PF
   - employee NPS
   - professional tax
   - employer NPS
   - HRA received
   - other allowances
+- capitalGains
+  - equitySTCG
+  - equityLTCG
+  - otherSTCG
+  - otherLTCG
 - housing
   - rent paid
   - owns home
